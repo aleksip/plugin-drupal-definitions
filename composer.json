@@ -1,0 +1,38 @@
+{
+    "name": "aleksip/plugin-drupal-definitions",
+    "description": "Drupal Definitions Plugin for Pattern Lab PHP",
+    "keywords": ["pattern lab", "plugin", "drupal"],
+    "homepage": "https://github.com/aleksip/plugin-drupal-definitions",
+    "license": "GPL-2.0-or-later",
+    "type": "patternlab-plugin",
+    "authors": [
+        {
+            "name": "Aleksi Peebles"
+        }
+    ],
+    "support": {
+        "issues": "https://github.com/aleksip/plugin-drupal-definitions/issues",
+        "source": "https://github.com/aleksip/plugin-drupal-definitions/releases"
+    },
+    "autoload": {
+        "psr-0": {
+            "aleksip\\DrupalDefinitionsPlugin\\": "src/"
+        }
+    },
+    "require": {
+        "php": ">=5.5.9",
+        "pattern-lab/core": "^2.6.3"
+    },
+    "extra": {
+        "patternlab": {
+            "config": {
+                "plugins": {
+                    "drupalDefinitions": {
+                        "enabled": true,
+                        "verbose": false
+                    }
+                }
+            }
+        }
+    }
+}
