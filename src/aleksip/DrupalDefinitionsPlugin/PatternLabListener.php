@@ -29,6 +29,10 @@ class PatternLabListener extends Listener
 
     public function processPseudoPatternData()
     {
+        if (!$this->isEnabled()) {
+            return;
+        }
+
         $pseudoPatternHelper = new PseudoPatternHelper();
         $pseudoPatternHelper->run();
     }
