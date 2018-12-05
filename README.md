@@ -30,8 +30,11 @@ example_card:
   label: 'Example card'
   category: 'Cards'
 
-  # Please note that Drupal dictates layout templates to use the .html.twig 
-  # suffix.
+  # Please note that Drupal requires layout templates to use the .html.twig
+  # suffix, which is left out in layout definitions.
+  #
+  # The plugin expects the template file to be in the same directory as the
+  # layout definition file. The path part is only used by Drupal.
   #
   # Pattern Lab shorthand syntax uses the template name without the .twig suffix 
   # so this pattern would be molecules-example-card-html.
@@ -55,38 +58,57 @@ example_card:
   
     # The 'base' key is reserved for base pattern data.
     base:
-      card_type: 'Lorem ipsum'
-      
-      # It is possible to use Data Transform Plugin features too!
-      image: atoms-img-3x2
-      
-      date: '19.11.2018'
-      title: 'Lorem ipsum dolor sit amet, consectetur adipiscing elit'
-      text: "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do
-        eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad
-        minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip
-        ex ea commodo consequat."
 
-    # All other keys are used to create pseudo-patterns.
+      # The 'meta' section is for pattern documentation metadata. This 
+      # is equivalent to the YAML front matter section of a Pattern Lab .md 
+      # documentation file. These values are merged with the contents of a
+      # possible documentation file, so .md files can still be used for markdown
+      # content.
+      meta:
 
+        title: 'Example card'
+        state: inprogress
+
+      # The 'data' section is for pattern data.
+      data:
+
+        card_type: 'Lorem ipsum'
+      
+        # It is possible to use Data Transform Plugin features too!
+        image: atoms-img-3x2
+      
+        date: '19.11.2018'
+        title: 'Lorem ipsum dolor sit amet, consectetur adipiscing elit'
+        text: "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do
+          eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad
+          minim veniam, quis nostrud exercitation ullamco laboris nisi ut
+          aliquip ex ea commodo consequat."
+
+    # All other keys under 'example_values' are used to create pseudo-patterns.
     # Pseudo-pattern data is merged with base pattern data just like with 
     # regular pseudo-pattern data files.
-    #
+
     # The key is used as the name of the pseudo-pattern. So in Pattern Lab 
     # shorthand syntax this pseudo-pattern would be 
     # molecules-example-card-html-news-item. 
     news-item:
-      card_type: 'News item'
+
+      # You can leave either 'meta' or 'data' out if not needed.
+    
+      data:
+        card_type: 'News item'
 
     # It is also possible to hide the pseudo-patterns just like with regular
     # pseudo-pattern data files, by adding an underscore to the beginning of the 
     # pseudo-pattern key name.
     _event-1:
-    
-      # Yes, it is possible to use all Data Transform Plugin features!
-      attributes:
-        Attribute():
-          class:
-            - example-card
-            - example-card--event
+
+      data:
+
+        # Yes, it is possible to use all Data Transform Plugin features!
+        attributes:
+          Attribute():
+            class:
+              - example-card
+              - example-card--event
 ```

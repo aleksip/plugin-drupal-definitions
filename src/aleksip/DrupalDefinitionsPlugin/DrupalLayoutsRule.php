@@ -34,6 +34,8 @@ class DrupalLayoutsRule extends Rule
 
         $file = file_get_contents($fullPath.'/'.$name);
 
+        $layoutData = array();
+
         try {
             $layoutData = Yaml::parse($file);
         } catch (ParseException $e) {
@@ -51,38 +53,170 @@ class DrupalLayoutsRule extends Rule
                 continue;
             }
 
+            $baseTemplateParts = explode('/', $definition['template']);
+            $baseTemplateName = end($baseTemplateParts).'.html';
+
             // The template must exist in the same directory as the definition file.
-            $parts = explode('/', $definition['template']);
-            $name = end($parts).'.html.twig';
-            $ext = 'twig';
-            if (!file_exists($fullPath.'/'.$name)) {
+            if (!file_exists($fullPath.'/'.$baseTemplateName.'.twig')) {
                 continue;
             }
 
             // The definition must have an 'example_values' section.
-            if (!empty($definition['example_values'])) {
-                foreach ($definition['example_values'] as $pattern => $data) {
-                    if ('base' === $pattern) {
-                        // The 'base' key is reserved for the base pattern.
-                        $this->processBasePattern($depth, $ext, $path, $pathName, $name, $data);
-                    } else {
-                        // All other keys are treated as pseudo-patterns.
-                        if (in_array($pattern[0], PatternData::getFrontMeta())) {
-                            $pseudoPatternName = $pattern[0].substr($name, 0, -5).'~'.substr($pattern, 1).'.twig';
-                        } else {
-                            $pseudoPatternName = substr($name, 0, -5).'~'.$pattern.'.twig';
-                        }
-                        $this->processPseudoPattern($depth, $ext, $path, $pathName, $pseudoPatternName, $data);
+            if (empty($definition['example_values'])) {
+                continue;
+            }
+
+            // Process the 'example_values' section.
+            foreach ($definition['example_values'] as $pattern => $exampleValues) {
+                foreach ($exampleValues as $key => $data) {
+                    switch ($key) {
+                        // Pattern documentation metadata is under the 'meta' key.
+                        case 'meta':
+                            $patternFileName = $this->getPatternFileName($pattern, $baseTemplateName, 'md', '-');
+                            $patternPathName = $this->getPatternPathName($pattern, $pathName, $name, $baseTemplateName, $patternFileName);
+                            $this->processPatternMeta($depth, 'md', $path, $patternPathName, $patternFileName, $data);
+                            break;
+
+                        // Pattern data is under the 'data' key.
+                        case 'data':
+                            if ('base' === $pattern) {
+                                // The 'base' key is reserved for the base pattern.
+                                $patternFileName = $this->getPatternFileName($pattern, $baseTemplateName, 'twig');
+                                $patternPathName = $this->getPatternPathName($pattern, $pathName, $name, $baseTemplateName, $patternFileName);
+                                $this->processBasePatternData($depth, 'twig', $path, $patternPathName, $patternFileName, $data);
+                            } else {
+                                // All other keys are treated as pseudo-patterns.
+                                $patternFileName = $this->getPatternFileName($pattern, $baseTemplateName, 'yml');
+                                $patternPathName = $this->getPatternPathName($pattern, $pathName, $name, $baseTemplateName, $patternFileName);
+                                $this->processPseudoPatternData($depth, 'yml', $path, $patternPathName, $patternFileName, $data);
+                            }
+                            break;
                     }
                 }
+            }
+        }
+
+        // Remove the layout definition file from the store. (It is placed there
+        // by core's PatternInfoRule).
+        //
+        // The extra store entry does not seem to cause any problems so leaving
+        // the call out for now.
+        //$this->unsetPatternStoreOption($this->getPatternStoreKey($ext, $name));
+    }
+
+    protected function getPatternFileName($pattern, $patternFileName, $ext, $separator = '~')
+    {
+        if ('base' === $pattern) {
+            $patternFileName = $patternFileName.'.'.$ext;
+        } else {
+            if (in_array($pattern[0], PatternData::getFrontMeta())) {
+                $patternFileName = $pattern[0].$patternFileName.$separator.substr($pattern, 1).'.'.$ext;
+            } else {
+                $patternFileName = $patternFileName.$separator.$pattern.'.'.$ext;
+            }
+        }
+
+        return $patternFileName;
+    }
+
+    protected function getPatternPathName($pattern, $pathName, $name, $baseTemplateName, $patternName)
+    {
+        if ('base' === $pattern) {
+            $patternPathName = str_replace($name, $baseTemplateName, $pathName);
+        } else {
+            $patternPathName = str_replace($name, $patternName, $pathName);
+        }
+
+        return $patternPathName;
+    }
+
+    protected function getPatternStoreKey($ext, $name)
+    {
+        $patternTypeDash = PatternData::getPatternTypeDash();
+        $pattern         = str_replace(".".$ext, "", $name);        // foo
+        $patternDash     = $this->getPatternName($pattern, false); // foo
+        $patternPartial  = $patternTypeDash."-".$patternDash;     // atoms-foo
+
+        return $patternPartial;
+    }
+
+    protected function unsetPatternStoreOption($optionName)
+    {
+        $store = PatternData::get();
+        if (isset($store[$optionName])) {
+            unset($store[$optionName]);
+            PatternData::clear();
+            foreach ($store as $optionName => $optionValue) {
+                PatternData::setOption($optionName, $optionValue);
             }
         }
     }
 
     /**
+     * @see \PatternLab\PatternData\Rules\DocumentationRule::run()
+     */
+    protected function processPatternMeta($depth, $ext, $path, $pathName, $name, $yaml)
+    {
+        // load default vars
+        $patternType        = PatternData::getPatternType();
+        $patternTypeDash    = PatternData::getPatternTypeDash();
+        $dirSep             = PatternData::getDirSep();
+
+        // set-up the names, $name == 00-colors.md
+        $doc        = str_replace(".".$ext, "", $name);              // 00-colors
+        $docDash    = $this->getPatternName(str_replace("_", "", $doc), false); // colors
+        $docPartial = $patternTypeDash."-".$docDash;
+
+        // default vars
+        $patternSourceDir = Config::getOption("patternSourceDir");
+
+        // grab the title and unset it from the yaml so it doesn't get duped in the meta
+        if (isset($yaml["title"])) {
+            $title = $yaml["title"];
+            unset($yaml["title"]);
+        }
+
+        // figure out if this is a pattern subtype
+        $patternSubtypeDoc = false;
+
+        $category         = ($patternSubtypeDoc) ? "patternSubtype" : "pattern";
+        $patternStoreKey  = ($patternSubtypeDoc) ? $docPartial."-plsubtype" : $docPartial;
+
+        $patternStoreData = array(
+            "category"   => $category,
+            "meta"       => $yaml,
+            "full"       => $doc,
+        );
+
+        // can set `title: My Cool Pattern` instead of lifting from file name
+        if (isset($title)) {
+            $patternStoreData["nameClean"] = $title;
+        }
+
+        $availableKeys = [
+          'state', // can use `state: inprogress` instead of `button@inprogress.mustache`
+          'hidden', // setting to `true`, removes from menu and viewall, which is same as adding `_` prefix
+          'noviewall', // setting to `true`, removes from view alls but keeps in menu, which is same as adding `-` prefix
+          'order', // @todo implement order
+          'tags', // not implemented, awaiting spec approval and integration with styleguide kit. adding to be in sync with Node version.
+          'links', // not implemented, awaiting spec approval and integration with styleguide kit. adding to be in sync with Node version.
+        ];
+
+        foreach ($availableKeys as $key) {
+            if (isset($yaml[$key])) {
+                $patternStoreData[$key] = $yaml[$key];
+            }
+        }
+
+        // if the pattern data store already exists make sure this data overwrites it
+        $patternStoreData = (PatternData::checkOption($patternStoreKey)) ? array_replace_recursive(PatternData::getOption($patternStoreKey), $patternStoreData) : $patternStoreData;
+        PatternData::setOption($patternStoreKey, $patternStoreData);
+    }
+
+    /**
     * @see \PatternLab\PatternData\Rules\PatternInfoRule::run()
     */
-    protected function processBasePattern($depth, $ext, $path, $pathName, $name, $data)
+    protected function processBasePatternData($depth, $ext, $path, $pathName, $name, $data)
     {
         // load default vars
         $patternTypeDash = PatternData::getPatternTypeDash();
@@ -107,7 +241,7 @@ class DrupalLayoutsRule extends Rule
     /**
     * @see \PatternLab\PatternData\Rules\PseudoPatternRule::run()
     */
-    protected function processPseudoPattern($depth, $ext, $path, $pathName, $name, $data)
+    protected function processPseudoPatternData($depth, $ext, $path, $pathName, $name, $data)
     {
         // load default vars
         $patternSubtype      = PatternData::getPatternSubtype();
